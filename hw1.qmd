@@ -6,3 +6,81 @@ editor: visual
 ---
 
 This is the link to my repo: https://github.com/ytting920410/Homework1
+
+import library
+
+```{r}
+library(readODS)
+```
+
+Q1:
+
+a\.
+
+```{r}
+soybean <- read.csv('data/data.csv', header = TRUE)
+class(soybean)
+head(soybean)
+summary(soybean)
+colSums(is.na(soybean))
+```
+
+No NA in this dataset.
+
+Adjust the data
+
+```{r}
+soybean$Season <- factor(soybean$Season)
+soybean$Cultivar <- factor(soybean$Cultivar)
+
+soybean$PH <- as.numeric(soybean$PH)
+soybean$GY <- as.numeric(soybean$GY)
+soybean$MHG <- as.numeric(soybean$MHG)
+```
+
+b\.
+
+```{r}
+nrow(soybean) # Number of observations
+length(unique(soybean$Cultivar)) # Number of distinct cultivars
+table_seasonal <- table(soybean$Season) # Showing the number of observation in each season
+table_seasonal
+```
+
+There are 320 observations in the dataset and 40 distinct cultivars. There are 160 observations for each season.
+
+c\.
+
+```{r}
+cor(soybean$PH, soybean$GY, method = 'pearson') # 1. correlation between PH and GY
+
+cor_by_season <- sapply(
+  split(soybean, soybean$Season), 
+  function(x) cor(x$PH, x$GY, method = 'pearson')
+)
+cor_by_season # 2. correlation between PH and GY for each season
+
+tallest <- soybean[soybean$PH == max(soybean$PH), ]
+tallest$GY # 3. Find GY of the tallest observation
+
+mean(soybean$MHG > mean(soybean$MHG)) * 100 # 4. Percentage of observations have MHG greater than avarage
+
+cul_highGY <- aggregate(
+  GY ~ Cultivar, 
+  data = soybean, 
+  FUN = function(x) mean(x)
+)
+cul_highGY[order(cul_highGY$GY, decreasing = TRUE), ][1, ] # 5. cultivar with the highest average GY
+```
+
+1.  The correlation is 0.1232807.
+2.  Season 1 has the higher correlation.
+3.  The grain yield of the observation with the greatest plant height is 3304.678.
+4.  The percentage of observations with MHG greater than overall average MHG is 47.1875.
+5.  Cultivar 98R30 CE has the highest average grain yield with 3964.968.
+
+d\.
+
+```{r}
+
+```
