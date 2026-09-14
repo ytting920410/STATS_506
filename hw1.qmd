@@ -1,19 +1,20 @@
 ---
 title: "hw1"
 author: "Yi-Ting Tsai"
-format: html
+format: pdf
 editor: visual
 ---
 
 This is the link to my repo: https://github.com/ytting920410/Homework1
 
-import library
+Import library
 
 ```{r}
 library(readODS)
+library(roxygen2)
 ```
 
-Q1:
+Problem1:
 
 a\.
 
@@ -32,10 +33,12 @@ Adjust the data
 ```{r}
 soybean$Season <- factor(soybean$Season)
 soybean$Cultivar <- factor(soybean$Cultivar)
+# Season and Cultivar should be factor
 
 soybean$PH <- as.numeric(soybean$PH)
 soybean$GY <- as.numeric(soybean$GY)
 soybean$MHG <- as.numeric(soybean$MHG)
+# PH, GY, and MHG should be numeric
 ```
 
 b\.
@@ -43,7 +46,8 @@ b\.
 ```{r}
 nrow(soybean) # Number of observations
 length(unique(soybean$Cultivar)) # Number of distinct cultivars
-table_seasonal <- table(soybean$Season) # Showing the number of observation in each season
+table_seasonal <- table(soybean$Season) 
+# Showing the number of observation in each season
 table_seasonal
 ```
 
@@ -52,7 +56,8 @@ There are 320 observations in the dataset and 40 distinct cultivars. There are 1
 c\.
 
 ```{r}
-cor(soybean$PH, soybean$GY, method = 'pearson') # 1. correlation between PH and GY
+cor(soybean$PH, soybean$GY, method = 'pearson') 
+# 1. correlation between PH and GY
 
 cor_by_season <- sapply(
   split(soybean, soybean$Season), 
@@ -63,14 +68,16 @@ cor_by_season # 2. correlation between PH and GY for each season
 tallest <- soybean[soybean$PH == max(soybean$PH), ]
 tallest$GY # 3. Find GY of the tallest observation
 
-mean(soybean$MHG > mean(soybean$MHG)) * 100 # 4. Percentage of observations have MHG greater than avarage
+mean(soybean$MHG > mean(soybean$MHG)) * 100 
+# 4. Percentage of observations have MHG greater than avarage
 
 cul_highGY <- aggregate(
   GY ~ Cultivar, 
   data = soybean, 
   FUN = function(x) mean(x)
 )
-cul_highGY[order(cul_highGY$GY, decreasing = TRUE), ][1, ] # 5. cultivar with the highest average GY
+cul_highGY[order(cul_highGY$GY, decreasing = TRUE), ][1, ] 
+# 5. cultivar with the highest average GY
 ```
 
 1.  The correlation is 0.1232807.
@@ -82,5 +89,278 @@ cul_highGY[order(cul_highGY$GY, decreasing = TRUE), ][1, ] # 5. cultivar with th
 d\.
 
 ```{r}
+overall_means <- data.frame( # overall averages
+  Group = 'overall', 
+  as.list(
+    sapply(
+      soybean[c('PH', 'IFP', 'NLP', 'NGP', 'NGL', 'NS', 'MHG', 'GY')], 
+      mean, 
+    )
+  ), 
+  check.names = FALSE
+)
 
+seasonal_means <- aggregate( # season-specific averages
+  soybean[c('PH', 'IFP', 'NLP', 'NGP', 'NGL', 'NS', 'MHG', 'GY')], 
+  by = list(Group = paste('season', soybean$Season)), 
+  FUN = mean, 
+)
+mean_table <- rbind(overall_means, seasonal_means)
+mean_table # combined two tables
 ```
+
+e\.
+
+Suppose the null hypothesis is the population means of grain yield in two season are the same and the alternative hypothesis is the population means of grain yield in two season are different. Thus
+
+$$
+H_0: \mu_1 = \mu_2
+$$
+
+$$
+H_1: \mu_1 \neq \mu_2
+$$
+
+```{r}
+tt_result <- t.test( # Welch Two Sample t-test
+  GY ~ Season, 
+  data = soybean, 
+  alternative = 'two.sided', 
+  conf.level = 0.95
+)
+tt_result
+```
+
+The t-test produced t = 0.35155, df = 231.85, p-value = 0.7255. Because the p-value is higher than 0.05, we fail to reject the null hypothesis. The data do not provide sufficient evidence to conclude that the population means of grain yield in two season are the same.
+
+Now try pooled variance
+
+```{r}
+ptt_result <- t.test( # pooled Two Sample t-test
+  GY ~ Season, 
+  data = soybean, 
+  var.equal = TRUE
+)
+ptt_result
+```
+
+Both Welch and polled t-test led to the same conclusion.
+
+Problem2:
+
+a\. and b.
+
+```{r}
+adult_name <- c(
+  'age',
+  'workclass',
+  'fnlwgt',
+  'education',
+  'education_num',
+  'marital_status',
+  'occupation',
+  'relationship',
+  'race',
+  'sex',
+  'capital_gain',
+  'capital_loss',
+  'hours_per_week',
+  'native_country',
+  'income'
+)
+adult <- read.csv('data/adult/adult.data', 
+                  header = FALSE, 
+                  col.names = adult_name, 
+                  na.strings = '?', 
+                  strip.white = TRUE)
+# Read the file and rename the columns. This dataset use ? for missing values
+
+head(adult)
+str(adult)
+```
+
+c\.
+
+```{r}
+colSums(is.na(adult)) # Count the number of missing values in different columns.
+```
+
+There are 1836 missing values in workclass, 1843 missing values in occupation, and 583 missing values in native_country.
+
+d\.
+
+```{r}
+num_init <- nrow(adult)
+adult_filtered_HPW <- adult[adult$hours_per_week >= 10, ] 
+# remove hours_per_week >= 10
+num_after <- nrow(adult_filtered_HPW)
+data.frame(
+  stage = c('Before', 'After'), 
+  sample_size = c(num_init, num_after)
+)
+```
+
+The sample size reduced from 32561 to 32103.
+
+e\.
+
+```{r}
+num_init <- nrow(adult_filtered_HPW)
+adult_filtered_NA <- adult_filtered_HPW[complete.cases(adult_filtered_HPW), ]
+# Remove missing values for occupation, workclass, and native country
+num_after <- nrow(adult_filtered_NA)
+data.frame(
+  stage = c('Before', 'After'), 
+  sample_size = c(num_init, num_after)
+)
+```
+
+We removed the observations with missing values in occupation, workclass, or native country because keeping incomplete observations would prevent us from conducting analyses involving these variables. All observations with missing values were removed because the missing values occurred only in occupation, workclass, or native country. The sample size reduced from 32103 to 29873.
+
+f\.
+
+```{r}
+num_init <- nrow(adult_filtered_NA)
+adult_filtered_AGE <- adult_filtered_NA[adult_filtered_NA$age >= 18 & 
+                                          adult_filtered_NA$age <= 90 & 
+                                          adult_filtered_NA$education != 'Preschool', ]
+# Remove observations with age lower than 18 or higher than 90, 
+# and educational level is Preschool
+num_after <- nrow(adult_filtered_AGE)
+data.frame(
+  stage = c('Before', 'After'), 
+  sample_size = c(num_init, num_after)
+)
+```
+
+The sample size reduced from 29873 to 29523.
+
+g\.
+
+```{r}
+nrow(adult_filtered_AGE)
+```
+
+This is the final sample size with 29523.
+
+Problem3:
+
+a\.
+
+```{r}
+#' Compute the next value in happy number
+#' 
+#' @param x An positive integer.
+#' 
+#' @return An positive integer which is the next happy number of x
+#' 
+#' @examples
+#' nextHappy(19)
+#' nextHappy(82)
+
+nextHappy <- function(x){
+  if(length(x) != 1 || 
+     !is.numeric(x) || 
+     is.na(x) || 
+     !is.finite(x) || 
+     x <= 0 || 
+     x != floor(x)){ # make sure x is positive integer and not NA
+    stop('Input must be a positive integer.')
+  }
+  digits <- as.integer(strsplit(as.character(x), '')[[1]]) 
+  # seperate the digits in the input
+  sum(digits ^ 2)
+}
+```
+
+```{r}
+nextHappy(19)
+nextHappy(82)
+```
+
+b\.
+
+```{r}
+#' Generate a sequence of happy number
+#' 
+#' @param x A positive integer
+#' 
+#' @return A list with two features:
+#' \describe{
+#'  \item{sequence}{A sequence of happy number starts from x. For the nth number in the 
+#'  sequence, the n+1th number is the next happy number of it.}
+#'  \item{isHappy}{TRUE if the sequence reaches 1, otherwise 0.}
+#' }
+#' 
+#' @examples
+#' happySequence(19)
+#' happySequence(4)
+#' 
+
+happySequence <- function(x){
+  if(length(x) != 1 || 
+     !is.numeric(x) || 
+     is.na(x) || 
+     !is.finite(x) || 
+     x <= 0 || 
+     x != floor(x)){ 
+    # make sure x is positive integer and not NA
+    stop('Input must be a positive integer.')
+  }
+  if(x == 1){ # if the input in 1, just return the answer
+    return(list(sequence = x, isHappy = TRUE))
+  }
+  values <- c(x) # sequence of values in happy sequence
+  while(TRUE){
+    x <- nextHappy(x)
+    if(x == 1){ # if the value reaches 1, return the answer
+      values <- c(values, x)
+      return(list(sequence = values, isHappy = TRUE))
+    }
+    if(x %in% values){ 
+      # if the value repeats and will not reach 1, return the answer
+      return(list(sequence = values, isHappy = FALSE))
+    }
+    values <- c(values, x)
+  }
+}
+```
+
+```{r}
+happySequence(19)
+happySequence(4)
+```
+
+c\.
+
+a\.
+
+```{r}
+result_HN <- lapply(1: 1000, happySequence) 
+# calculate happy sequences of each number from 1 to 1000
+is_happy <- vapply(result_HN, function(x) x$isHappy, TRUE) 
+# test if these numbers are happy
+sum(is_happy)
+```
+
+There are 143 numbers are happy numbers.
+
+b\.
+
+```{r}
+sum(is_happy) / 1000 * 100 
+# calculate the percentage of happy number
+```
+
+The percentage of happy numbers among 1 through 1000 is 14.3%
+
+c\.
+
+```{r}
+len_happy <- vapply(result_HN, function(x) length(x$sequence), 1) 
+# give every length of each happy sequence
+max(len_happy)
+which(len_happy == max(len_happy))
+```
+
+The longest happy sequence before terminating is 19 numbers long, including happy sequences generated by 269, 296, 629, 667, 676, 692, 766, 799, 926, 979, 997
