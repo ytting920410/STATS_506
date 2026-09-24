@@ -1,0 +1,148 @@
+---
+title: "hw1"
+author: "Yi-Ting Tsai"
+format: pdf
+editor: visual
+---
+
+This is the link to my repo: https://github.com/ytting920410/STATS_506
+
+## Import library
+```{r}
+
+```
+
+## Create a function to check the input of every steps
+```{r}
+check_input <- function(n, p){
+  if(length(n) != 1 || !is.numeric(n) || is.na(n) || 
+     n < 1 || !is.finite(n) || n != floor(n)){
+    stop('n must be a positive integer') # check n
+  }
+  if(length(p) != 1 || !is.numeric(p) || is.na(n) || 
+     p < 0 || p > 1 || ! is.finite(p)){
+    stop('p must be a real number between 0 and 1') # check p
+  }
+}
+```
+
+## a. Simulation function
+```{r}
+momentum_walk <- function(n, p){
+  check_input(n, p) # sanitize the input
+  steps <- matrix( # set possible moves
+    c(1, 0,
+      0, 1,
+      -1, 0,
+      0, -1), 
+    ncol = 2, 
+    byrow = TRUE
+  )
+  
+  direction <- sample.int(4, size = 1) # the first step
+  x <- steps[direction, 1] # the first step on the x axis
+  y <- steps[direction, 2] # the first step on the y axis
+  n <- n - 1 # we've done one step, so wee have n - 1 step left
+  while(n > 0){ # n here is the number of remaining step we have
+    if(runif(1) > p){ # for 1 - p chances we have to choose direction again
+      direction <- sample.int(4, size = 1)
+    }
+    x <- x + steps[direction, 1] # update our position on x axis
+    y <- y + steps[direction, 2] # update our position on y axis
+    n <- n - 1 # n - 1 steps remain
+  }
+  c(x = x, y = y)
+}
+```
+
+# Test the momentum_walk function
+```{r}
+momentum_walk(10, 0.6)
+momentum_walk(100, 0.4)
+```
+
+## b. implement the simulation
+# Version 1
+Same as momentum_walk function above
+```{r}
+momentum_walk1 <- function(n, p){
+  check_input(n, p) # sanitize the input
+  steps <- matrix( # set possible moves
+    c(1, 0,
+      0, 1,
+      -1, 0,
+      0, -1), 
+    ncol = 2, 
+    byrow = TRUE
+  )
+  
+  direction <- sample.int(4, size = 1) # the first step
+  x <- steps[direction, 1] # the first step on the x axis
+  y <- steps[direction, 2] # the first step on the y axis
+  n <- n - 1 # we've done one step, so wee have n - 1 step left
+  while(n > 0){ # n here is the number of remaining step we have
+    if(runif(1) > p){ # for 1 - p chances we have to choose direction again
+      direction <- sample.int(4, size = 1)
+    }
+    x <- x + steps[direction, 1] # update our position on x axis
+    y <- y + steps[direction, 2] # update our position on y axis
+    n <- n - 1 # n - 1 steps remain
+  }
+  c(x = x, y = y)
+}
+```
+
+# Version 2
+```{r}
+momentum_walk2 <- function(n, p){
+  check_input(n, p) # sanitize the input
+  steps <- matrix( # set possible moves
+    c(1, 0,
+      0, 1,
+      -1, 0,
+      0, -1), 
+    ncol = 2, 
+    byrow = TRUE
+  )
+  
+  direction <- sample.int(4, size = 1) # the first step
+  all_direction <- c( # produce all n steps we will go
+    direction, # add the first step
+    if(n >= 2){ # if we have n = 1, we don't need further action
+      lapply(2: n, function(i){ # for n >= 2, we have to calculate steps
+        if(runif(1) > p){ # for 1 - p chances we have to choose direction again
+          direction <<- sample.int(4, size = 1)
+        }
+        return(direction) # get next step
+      })
+    }else{
+      integer(0) # no action
+    }
+  )
+  final_pos <- colSums(steps[unlist(all_direction), , drop = FALSE])
+  # calculate our final position by adding all the moves we made
+  c(x = final_pos[1], y = final_pos[2])
+}
+```
+
+# Test the momentum_walk2 function
+```{r}
+momentum_walk2(1, 0.6)
+momentum_walk2(100, 0.4)
+```
+
+## c. Reproducibility
+```{r}
+set.seed(128)
+result1_f1 <- momentum_walk1(10, 0.6)
+set.seed(128)
+result2_f1 <- momentum_walk1(10, 0.6)
+set.seed(128)
+result1_f2 <- momentum_walk1(1000, 0.6)
+set.seed(128)
+result2_f2 <- momentum_walk1(1000, 0.6)
+
+result1_f1 == result2_f1
+result1_f2 == result2_f2
+```
+set.seed sets the random number generator to a fixed initial state. As long as the seed, functions used are called in the same order, the same result will be reproduced.
