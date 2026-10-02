@@ -1,5 +1,5 @@
 ---
-title: "hw1"
+title: "hw2"
 author: "Yi-Ting Tsai"
 format: pdf
 editor: visual
@@ -8,12 +8,29 @@ editor: visual
 This is the link to my repo: https://github.com/ytting920410/STATS_506
 
 ## Import library
-```{r}
 
+```{r}
+library(microbenchmark)
+library(roxygen2)
 ```
 
+### Problem 1: Random Walk with Momentum
+
 ## Create a function to check the input of every steps
+
 ```{r}
+#' Sanitize inputs for a momentum random walk
+#'
+#' Checks whether the inputs for a momentum random walk satisfy the required
+#' conditions.
+#'
+#' @param n A positive integer specifying the number of steps.
+#' @param p A numeric value between 0 and 1.
+#'
+#' @return This function returns \code{NULL} invisibly if both inputs are
+#'   valid. Otherwise, it stops with an error message.
+#'
+#' @keywords internal
 check_input <- function(n, p){
   if(length(n) != 1 || !is.numeric(n) || is.na(n) || 
      n < 1 || !is.finite(n) || n != floor(n)){
@@ -27,7 +44,22 @@ check_input <- function(n, p){
 ```
 
 ## a. Simulation function
+
 ```{r}
+#' Simulate a momentum random walk
+#'
+#' Simulates an \code{n}-step two-dimensional random walk. The first
+#' direction is chosen randomly. Each later step keeps the previous direction
+#' with probability \code{p}; otherwise, a new direction is chosen randomly.
+#'
+#' @param n A positive integer indicating the number of steps.
+#' @param p A number between 0 and 1 indicating the momentum probability.
+#'
+#' @return A named vector containing the final x and y coordinates.
+#'
+#' @examples
+#' set.seed(123)
+#' momentum_walk(10, 0.6)
 momentum_walk <- function(n, p){
   check_input(n, p) # sanitize the input
   steps <- matrix( # set possible moves
@@ -56,15 +88,34 @@ momentum_walk <- function(n, p){
 ```
 
 # Test the momentum_walk function
+
 ```{r}
+set.seed(44)
 momentum_walk(10, 0.6)
 momentum_walk(100, 0.4)
 ```
 
 ## b. implement the simulation
+
 # Version 1
+
 Same as momentum_walk function above
+
 ```{r}
+#' Simulate a momentum random walk
+#'
+#' Simulates an \code{n}-step two-dimensional random walk with loop. The first
+#' direction is chosen randomly. Each later step keeps the previous direction
+#' with probability \code{p}; otherwise, a new direction is chosen randomly.
+#'
+#' @param n A positive integer indicating the number of steps.
+#' @param p A number between 0 and 1 indicating the momentum probability.
+#'
+#' @return A named vector containing the final x and y coordinates.
+#'
+#' @examples
+#' set.seed(123)
+#' momentum_walk(10, 0.6)
 momentum_walk1 <- function(n, p){
   check_input(n, p) # sanitize the input
   steps <- matrix( # set possible moves
@@ -93,7 +144,22 @@ momentum_walk1 <- function(n, p){
 ```
 
 # Version 2
+
 ```{r}
+#' Simulate a momentum random walk
+#'
+#' Simulates an \code{n}-step two-dimensional random walk with lapply. The first
+#' direction is chosen randomly. Each later step keeps the previous direction
+#' with probability \code{p}; otherwise, a new direction is chosen randomly.
+#'
+#' @param n A positive integer indicating the number of steps.
+#' @param p A number between 0 and 1 indicating the momentum probability.
+#'
+#' @return A named vector containing the final x and y coordinates.
+#'
+#' @examples
+#' set.seed(123)
+#' momentum_walk(10, 0.6)
 momentum_walk2 <- function(n, p){
   check_input(n, p) # sanitize the input
   steps <- matrix( # set possible moves
@@ -126,12 +192,15 @@ momentum_walk2 <- function(n, p){
 ```
 
 # Test the momentum_walk2 function
+
 ```{r}
+set.seed(44)
 momentum_walk2(1, 0.6)
 momentum_walk2(100, 0.4)
 ```
 
 ## c. Reproducibility
+
 ```{r}
 set.seed(128)
 result1_f1 <- momentum_walk1(10, 0.6)
@@ -142,7 +211,372 @@ result1_f2 <- momentum_walk1(1000, 0.6)
 set.seed(128)
 result2_f2 <- momentum_walk1(1000, 0.6)
 
-result1_f1 == result2_f1
-result1_f2 == result2_f2
+result1_f1 == result2_f1 # test if these results are the same
+result1_f2 == result2_f2 # test if these results are the same
 ```
+
 set.seed sets the random number generator to a fixed initial state. As long as the seed, functions used are called in the same order, the same result will be reproduced.
+
+## d. Does momentum mater?
+
+```{r}
+set.seed(32)
+resultsD <- sapply(c(0, 0.5, 0.9), function(p) momentum_walk1(1000, p))
+# run momentum walk 1000 times for p = 0, 0.5, 0.9
+distance <- apply(t(resultsD), 1, function(pos) sqrt(sum(pos ^ 2)))
+# calculate each distances from (0, 0) to (x, y)
+resultsDdf <- data.frame(
+  p = c(0, 0.5, 0.9), 
+  x = resultsD['x', ], 
+  y = resultsD['y', ], 
+  distance = distance
+)
+resultsDdf
+```
+
+Increasing p tends to increase the final distance. Having higher p, the simulation tends to move toward the same way.
+
+## e. Monte Carlo simulation
+
+```{r}
+p <- c(0, 0.25, 0.5, 0.75, 0.9) # for each of p
+mean_distance <- sapply(
+  p, 
+  function(prob){ # do momentum walk 1000 times
+    distance <- replicate(
+      1000, 
+      {
+        position <- momentum_walk1(1000, prob) # do momentum walk with 1000 steps
+        sqrt(sum(position ^ 2)) # calculate distance
+      }
+    )
+    mean(distance) # get the mean of 1000 tries
+  }
+)
+result_md <- data.frame(
+  p = p, 
+  distance = mean_distance
+)
+result_md
+```
+
+The mean of final distance increases as p increases.
+
+## f. Compare computational performance
+
+```{r}
+BM_1000 <- microbenchmark( # test both methods with 1000 times
+  loop = momentum_walk1(1000, 0.6), 
+  reduce = momentum_walk2(1000, 0.6), 
+  time = 100L
+)
+BM_100000 <- microbenchmark( # test both methods with 1000 times
+  loop = momentum_walk1(100000, 0.6), 
+  reduce = momentum_walk2(100000, 0.6), 
+  time = 20L
+)
+print(BM_1000)
+print(BM_100000)
+```
+
+i.  It seems version 1 is faster.
+ii. The comparison result is the same as the smaller input.
+iii. Version 2 has additional function calls and version 1 just updates the direction and position directly. So version 1 run faster.
+
+### Problem 2: Monte Carlo Simulation of Campus Bus Arrivals
+
+```{r}
+set.seed(256)
+
+n <- 10000 # 10000 days
+
+time68 <- matrix( # simulated number of passengers in each hours from 6AM to 8AM
+  rpois(n * 3, lambda = 4), 
+  nrow = n, 
+  ncol = 3
+)
+
+time9 <- matrix( # simulated number of passengers in 9AM
+  rnorm(n, mean = 45, sd = 4), 
+  nrow = n, 
+  ncol = 1
+)
+
+time1015 <- matrix( # simulated number of passengers in each hours from 10AM to 3PM
+  rpois(n * 6, lambda = 15), 
+  nrow = n, 
+  ncol = 6
+)
+
+time16 <- matrix( # simulated number of passengers in 4PM
+  rnorm(n, mean = 55, sd = 5), 
+  nrow = n, 
+  ncol = 1
+)
+
+time1722 <- matrix( # simulated number of passengers in each hours from 5PM to 10PM
+  rpois(n * 6, lambda = 9), 
+  nrow = n, 
+  ncol = 1
+)
+
+total <- rowSums(time68) + time9 + rowSums(time1015) + time16 + rowSums(time1722)
+# sum of each day
+mean(total) # calculate mean of 10000 days of data 
+```
+
+The simulated estimation is about 211 passengers per day.
+
+### Problem 3: Linear Regression
+
+## a. Data preparation and de-identification
+
+```{r}
+youtube <- read.csv( # read data
+  "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-03-02/youtube.csv"
+)
+
+youtube_deiden <- youtube[!(names(youtube) %in% c(
+  'brand', 
+  'title',
+  'link',
+  'youtube_link',
+  'channel_title',
+  'category_id',
+  'published_at',
+  'thumbnail',
+  'description'
+))] # remove the columns we do not need
+dim(youtube_deiden)
+names(youtube_deiden)
+```
+
+There are 247 rows and 18 columns
+
+## b. Exploring potential outcomes
+
+```{r}
+outcome <- c(
+  'view_count', 
+  'like_count', 
+  'dislike_count', 
+  'favorite_count', 
+  'comment_count'
+)
+
+par(mfrow = c(2, 3)) # draw the distribution and print the count of favorite_count
+for(i in outcome){
+  hist(youtube_deiden[[i]],
+    main = i,
+    xlab = i, 
+    breaks = 30
+  )
+}
+table(youtube_deiden$favorite_count, useNA = 'ifany')
+```
+
+We can see the data are strongly right-skewed expect favorite_count. Thus, we can apply log(1 + x). We are not going to use favorite_count because most of it are 0.
+
+```{r}
+youtube_deiden$log_view_count <- log1p(youtube_deiden$view_count)
+youtube_deiden$log_like_count <- log1p(youtube_deiden$like_count)
+youtube_deiden$log_dislike_count <- log1p(youtube_deiden$dislike_count)
+youtube_deiden$log_comment_count <- log1p(youtube_deiden$comment_count)
+# calculate log(1 + x)
+
+outcome_transformed <- c(
+  'log_view_count', 
+  'log_like_count', 
+  'log_dislike_count', 
+  'log_comment_count'
+)
+
+par(mfrow = c(2, 2))
+for(i in outcome_transformed){ # draw the distribution
+  hist(
+    youtube_deiden[[i]], 
+    main = i, 
+    xlab = i, 
+    breaks = 30
+  )
+}
+par(mfrow = c(1, 1))
+```
+
+The transformed variables are used as the outcomes in the analyses. favorite_count is not suitable because is has not variation.
+
+## c. Fitting linear regression models
+
+```{r}
+predictor <- c(
+  "funny", 
+  "show_product_quickly", 
+  "patriotic", 
+  "celebrity", 
+  "danger", 
+  "animals", 
+  "use_sex"
+)
+# set the characteristics we want to use
+
+to_int <- function(x){ # change those Boolean expression into integer
+  if(is.logical(x)){
+    return(as.integer(x))
+  }
+}
+
+youtube_deiden[predictor] <-
+  lapply(
+    youtube_deiden[predictor],
+    to_int
+  )
+# Transform logical predictors into 0 and 1
+```
+
+```{r}
+models <- expand.grid(
+  outcome = outcome_transformed, 
+  predictors = predictor, 
+  stringsAsFactors = FALSE
+)
+
+result_model <- do.call(
+  rbind, 
+  lapply(seq_len(nrow(models)), function(i){
+      outcome_i <- models$outcome[i]
+      predictors_i <- models$predictors[i]
+      # select outcome and predictor for row i
+      
+      formula_i <- as.formula(
+        paste(
+          outcome_i, 
+          "~", 
+          predictors_i, 
+          "+ year"
+        )
+      ) # construct formula
+      
+      fit_i <- lm(
+        formula = formula_i, 
+        data = youtube_deiden
+      ) # fit the linear model
+      
+      # get the coefficient table from summary
+      coef_table <- summary(fit_i)$coefficients
+      
+      data.frame( # form a data.frame with outcome, predictor, estimate, p_value
+        outcome = outcome_i, 
+        predictor = predictors_i, 
+        estimate <- coef_table[predictors_i, "Estimate"], 
+        p_value <- coef_table[predictors_i, "Pr(>|t|)"], 
+        stringsAsFactors = FALSE
+      )
+    }
+  )
+)
+
+names(result_model) <- c(
+  "outcome", "predictor", "estimate", "p_value"
+)
+
+result_model$significant <- result_model$p_value < 0.05
+result_model$direction <- ifelse(result_model$estimate > 0, "positive", "negative")
+# add significant and direction
+result_model
+```
+
+1.  None of the commercial characteristics are statistically significant.
+2.  All of them are negative.
+
+```{r}
+result_view_ct <- subset(result_model, outcome == "log_view_count")
+largest_view_ct <- result_view_ct[which.max(result_view_ct$estimate), 
+                                  c("outcome", 
+                                    "predictor", 
+                                    "estimate", 
+                                    "p_value", 
+                                    "significant", 
+                                    "direction")
+                                  ]
+# get the row with outcome is log_view_count and largest estimate value
+largest_view_ct
+```
+
+3.  Commercial characteristic danger has the largest positive estimated association with view count
+
+## d. Estimating regression coefficients using matrix algebra
+
+```{r}
+result_view <- subset(
+  result_model, 
+  outcome == "log_view_count"
+)
+# get regression results for log_view_count only
+result_view
+```
+
+```{r}
+selected_pred <- result_view$predictor[which.min(result_view$p_value)]
+# get the commercial characteristic with the smallest p-value
+selected_pred
+```
+
+```{r}
+variables <- c("log_view_count", selected_pred, "year")
+# choose the variables we need
+data_ols <- youtube_deiden[
+  complete.cases(youtube_deiden[variables]), 
+  variables, 
+  drop = FALSE
+] # keep only these variables
+head(data_ols)
+```
+
+```{r}
+X <- cbind(
+  intercept = 1, 
+  predictor = data_ols[[selected_pred]], 
+  year = data_ols$year
+)
+# construct X matrix in OLS
+
+y <- data_ols$log_view_count
+
+dim(X)
+head(y)
+length(y)
+# construct y in OLS
+```
+
+```{r}
+# build beta_hat
+beta_hat <- solve(t(X) %*% X) %*% (t(X) %*% y)
+rownames(beta_hat) <- c(
+  "(Intercept)", 
+  selected_pred, 
+  "year"
+)
+
+beta_hat
+# print beta_hat
+
+formula_OLS <- as.formula( # construct the formula
+  paste(
+    "log_view_count ~", 
+    selected_pred, 
+    "+ year"
+  )
+)
+fit_OLS <- lm(formula = formula_OLS, data = data_ols)
+# fit the formula with function lm()
+
+coef(fit_OLS)
+# get beta_hat from lm()
+```
+
+```{r}
+all.equal(as.numeric(beta_hat), as.numeric(coef(fit_OLS)))
+# test if our beta_hat is equal to the one from lm()
+```
+
+The result of testing if $\hat{\beta}$ and coefficient from lm() is equal is TRUE
