@@ -145,6 +145,68 @@ table(data$children, useNA = "always")
 table(data$income, useNA = "always")
 ```
 
+## c. Fit Poisson Model
+
+```{r}
+modelrp1 <- glm(
+  tymp_r ~ gender, 
+  data = data, 
+  family = poisson(), 
+  na.action = na.omit
+)
+modelrp2 <- glm(
+  tymp_r ~ gender + citizen + children + income, 
+  data = data, 
+  family = poisson(), 
+  na.action = na.omit
+)
+modellp1 <- glm(
+  tymp_l ~ gender, 
+  data = data, 
+  family = poisson(), 
+  na.action = na.omit
+)
+modellp2 <- glm(
+  tymp_l ~ gender + citizen + children + income, 
+  data = data, 
+  family = poisson(), 
+  na.action = na.omit
+)
+# construct four Poisson models
+
+summary(modelrp1)
+summary(modelrp2)
+summary(modellp1)
+summary(modellp2)
+```
+
+produce a table
+```{r}
+irr <- function(model, model_name){
+  coef_table <- summary(model)$coefficients
+  beta <- coef_table[, "Estimate"]
+  se <- coef_table[, "Std. Error"]
+  p_value <- coef_table[, "Pr(>|z|)"]
+  data.frame(
+    model = model_name, 
+    predictor = rownames(coef_table), 
+    IRR = exp(beta), 
+    CI_lower = exp(beta - 1.96 * se), 
+    CI_upper = exp(beta + 1.96 * se), 
+    p_value = p_value, 
+    row.names = NULL
+  )
+}
+
+irr_result <- rbind(
+  irr(modelrp1, "1R - Right ear: gender"), 
+  irr(modelrp2, "2R - Right ear: gender, citizenship status, number of children, annual household income"), 
+  irr(modellp1, "1L - Left ear: gender"), 
+  irr(modellp2, "2L - Right ear: gender, citizenship status, number of children, annual household income")
+)
+irr_result
+```
+
 ```{r}
 
 ```
