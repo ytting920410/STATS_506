@@ -1,0 +1,72 @@
+---
+title: "HW3"
+author: "Yi-Ting Tsai"
+format: pdf
+editor: visual
+---
+
+load library
+```{r}
+library(haven)
+library(knitr)
+```
+
+### Problem 1
+## a. Download and Read File
+```{r}
+download.file("https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/AUX_I.xpt", "AUX_I.XPT", mode = "wb")
+download.file("https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/DEMO_I.xpt", "DEMO_I.XPT", mode = "wb")
+
+aux <- read_xpt("AUX_I.XPT")
+demo <- read_xpt("DEMO_I.XPT")
+
+dim(aux)
+dim(demo)
+names(aux)
+names(demo)
+```
+
+merge into a dataframe
+
+AUXTWIDR	Tympanometric width, right ear
+AUXTWIDL	Tympanometric width, left ear
+
+```{r}
+attr(aux$AUXTWIDR, "label")
+attr(aux$AUXTWIDL, "label")
+# check these labels are about Tympanometric
+summary(aux$AUXTWIDR)
+summary(aux$AUXTWIDL)
+# check the number of NA's
+```
+
+```{r}
+aux_s <- aux[, c("SEQN", "AUXTWIDR", "AUXTWIDL")]
+names(aux_s) <- c("SEQN", "tymp_r", "tymp_l")
+
+demo_s <- demo[, c("SEQN", "RIAGENDR", "DMDCITZN", "DMDHHSZA", "INDHHIN2")]
+names(demo_s) <- c("SEQN", "gender_raw", "citizen_raw", "children_raw", "income_raw")
+# get data with only labels we need for AUX and demo
+```
+
+```{r}
+data <- merge(
+  x = aux_s, 
+  y = demo_s, 
+  by = "SEQN", 
+  all = FALSE
+)
+# merge AUX and demo
+```
+
+```{r}
+dim(data)
+# Display the dimensions of the data.frame
+```
+
+## b. Clean the Variables
+
+```{r}
+
+```
+
