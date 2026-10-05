@@ -67,6 +67,85 @@ dim(data)
 ## b. Clean the Variables
 
 ```{r}
+table(data$gender_raw, useNA = "always")
+table(data$citizen_raw, useNA = "always")
+table(data$children_raw, useNA = "always")
+table(data$income_raw, useNA = "always")
+summary(data$tymp_r)
+summary(data$tymp_l)
+# check if there are any weird numbers like 999
+```
+
+```{r}
+data$tymp_r <- as.numeric(data$tymp_r)
+data$tymp_l <- as.numeric(data$tymp_l)
+
+data$tymp_r[data$tymp_r %in% c(555, 777, 999)] <- NA
+data$tymp_l[data$tymp_l %in% c(555, 777, 999)] <- NA
+# recode special numbers as NA
+
+data$tymp_r[!is.na(data$tymp_r) & (data$tymp_r < 0 | data$tymp_r > 499)] <- NA
+data$tymp_l[!is.na(data$tymp_l) & (data$tymp_l < 0 | data$tymp_l > 499)] <- NA
+# the value must be in the range of 1 ~ 499
+
+summary(data$tymp_r)
+summary(data$tymp_l)
+# we check the summary again but we can see that there are no invalid value
+```
+
+```{r}
+data$gender_raw[data$gender_raw %in% c(7, 9)] <- NA
+data$gender <- factor(
+  data$gender_raw, 
+  levels = c(1, 2), 
+  labels = c("male", "female")
+)
+# convert gender to a factor with informative labels.
+# male is the first level
+
+data$citizen_raw[data$citizen_raw %in% c(7, 9)] <- NA
+data$citizen <- factor(
+  data$citizen_raw, 
+  levels = c(1, 2),
+  labels = c("citizen", "noncitizen")
+)
+# convert citizenship status to a factor with informative labels.
+
+data$children_raw[data$children_raw %in% c(7, 9)] <- NA
+data$children <- as.numeric(data$children_raw)
+data$citizen[!(data$children %in% 0: 3)] <- NA
+# convert the number of young children to an ordinary numeric variable.
+
+data$income_raw[data$income_raw %in% c(12, 13, 77, 99)] <- NA
+income_midpoint <- c(
+  "1"  = 2500,
+  "2"  = 7500,
+  "3"  = 12500,
+  "4"  = 17500,
+  "5"  = 22500,
+  "6"  = 30000,
+  "7"  = 40000,
+  "8"  = 50000,
+  "9"  = 60000,
+  "10" = 70000,
+  "14" = 87500,
+  "15" = 100000
+)
+data$income <- unname(income_midpoint[as.character(data$income_raw)])
+# convert detailed income categories to approximate dollar midpoints.
+# codes 12 and 13 are broad categories that cannot be mapped uniquely.
+# codes 77 and 99 are documented missing-value codes.
+# all four codes therefore become NA in the continuous variable.
+
+# replace special value in all variables with NA
+
+table(data$gender, useNA = "always")
+table(data$citizen, useNA = "always")
+table(data$children, useNA = "always")
+table(data$income, useNA = "always")
+```
+
+```{r}
 
 ```
 
