@@ -200,14 +200,33 @@ irr <- function(model, model_name){
 
 irr_result <- rbind(
   irr(modelrp1, "1R - Right ear: gender"), 
-  irr(modelrp2, "2R - Right ear: gender, citizenship status, number of children, annual household income"), 
+  irr(modelrp2, "2R - Right ear: adjusted"), 
   irr(modellp1, "1L - Left ear: gender"), 
-  irr(modellp2, "2L - Right ear: gender, citizenship status, number of children, annual household income")
+  irr(modellp2, "2L - Right ear: adjusted")
 )
 irr_result
 ```
 
+calculate model statistics
 ```{r}
+pseudo_r2 <- function(model){
+  1 - model$deviance / model$null.deviance
+}
 
+model_list <- list(
+  "1R: Right ear, gender" = modelrp1,
+  "2R: Right ear, adjusted" = modelrp2,
+  "1L: Left ear, gender" = modellp1,
+  "2L: Left ear, adjusted" = modellp2
+)
+
+model_statistics <- data.frame(
+  model = names(model_list), 
+  N = sapply(model_list, nobs), 
+  pseudo_R2 = sapply(model_list, pseudo_r2), 
+  AIC = sapply(model_list, AIC), 
+  row.names = NULL
+)
+model_statistics
 ```
 
