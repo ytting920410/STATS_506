@@ -63,6 +63,7 @@ data <- merge(
 dim(data)
 # Display the dimensions of the data.frame
 ```
+The merged data frame contained 4592 rows and 7 columns
 
 ## b. Clean the Variables
 
@@ -144,6 +145,7 @@ table(data$citizen, useNA = "always")
 table(data$children, useNA = "always")
 table(data$income, useNA = "always")
 ```
+The numerical household-income codes were not ordered according to actual income. Codes 12 and 13 could not be uniquely assigned to a detailed income range and were therefore set to NA; codes 77 and 99 were also treated as missing.
 
 ## c. Fit Poisson Model
 
@@ -197,6 +199,7 @@ irr <- function(model, model_name){
     row.names = NULL
   )
 }
+# use a function to extract exponentiated Poisson coefficients
 
 irr_result <- rbind(
   irr(modelrp1, "1R - Right ear: gender"), 
@@ -204,7 +207,30 @@ irr_result <- rbind(
   irr(modellp1, "1L - Left ear: gender"), 
   irr(modellp2, "2L - Right ear: adjusted")
 )
-irr_result
+# combine coefficients from four models
+
+irr_result$`IRR (95% CI)` <- sprintf(
+  "%.3f (%.3f, %.3f)", 
+  irr_result$IRR, 
+  irr_result$CI_lower, 
+  irr_result$CI_upper
+)
+# combine IRR, lower CI and upper CI
+
+irr_result$`p-value` <- ifelse(
+  irr_result$p_value < 0.001, 
+  "<0.001", 
+  sprintf("%.3f", irr_result$p_value)
+)
+# format p-vlaues
+
+kable(
+  irr_result[, c("model", "predictor", "IRR (95% CI)", "p-value")], 
+  caption = paste("Incidence rate ratios from the", 
+                  "Poisson regression models"), 
+  align = c("l", "l", "c", "c")
+)
+# print the coefficient table
 ```
 
 calculate model statistics
@@ -212,6 +238,7 @@ calculate model statistics
 pseudo_r2 <- function(model){
   1 - model$deviance / model$null.deviance
 }
+# define a function to calculate pseudo-R-square
 
 model_list <- list(
   "1R: Right ear, gender" = modelrp1,
@@ -219,6 +246,7 @@ model_list <- list(
   "1L: Left ear, gender" = modellp1,
   "2L: Left ear, adjusted" = modellp2
 )
+# store all four fitted model
 
 model_statistics <- data.frame(
   model = names(model_list), 
@@ -227,6 +255,553 @@ model_statistics <- data.frame(
   AIC = sapply(model_list, AIC), 
   row.names = NULL
 )
-model_statistics
+# calculate sample size, pseudo-R-square, and AIC
+
+names(model_statistics)[3] <- "Deviance pseudo-R²"
+
+kable(model_statistics, caption = "Sample sizes and fit statistics for the Poisson models", align = c("l", "r", "r", "r"))
+# print the model-statistics table
 ```
 
+## d.Compare males and females in model2L
+```{r}
+coefficient_2L <- summary(modellp2)$coefficients
+
+gender_beta <- coefficient_2L["genderfemale", "Estimate"]
+
+gender_se <- coefficient_2L["genderfemale", "Std. Error"]
+
+gender_z <- coefficient_2L["genderfemale", "z value"]
+
+gender_p <- coefficient_2L["genderfemale", "Pr(>|z|)"]
+
+gender_irr <- exp(gender_beta)
+
+gender_lower <- exp(gender_beta - 1.96 * gender_se)
+
+gender_upper <- exp(gender_beta + 1.96 * gender_se)
+
+gender_test <- data.frame(
+  comparison = "Female vs. Male", 
+  IRR = round(gender_irr, 3), 
+  `95% CI lower` = round(gender_lower, 3), 
+  `95% CI upper` = round(gender_upper, 3), 
+  `z statistic` = round(gender_z, 3), 
+  `p-value` = gender_p, 
+  check.names = FALSE
+)
+# calculate coefficient, standard error, 
+# Wald z statistics, Wald p-value, and IRR
+
+kable(
+  gender_test, 
+  caption = "Model2L test of female-to-male incidence rate ratio"
+)
+```
+In Model 2L, the female-to-male IRR was 1.019 (95% CI: [1.012, 1.026], z = 5.176, p = 2e-07). Holding the other covariates constant, females had an expected left-ear tympanometric width that was 1.019 times that of males. Because p was less than .05, there was sufficient evidence of a gender difference.
+
+```{r}
+modellp2_data <- model.frame(modellp2)
+# obtain data used to fit model 2L
+
+prediction_data <- data.frame(
+  gender = factor(
+    c("male", "female"), 
+    levels = levels(modellp2_data$gender)
+  ), 
+  citizen = factor(
+    c("citizen", "citizen"), 
+    levels = levels(modellp2_data$citizen)
+  ), # use only citizen because the difference we want is gender
+  children = rep(
+    mean(modellp2_data$children), 
+    2
+  ), 
+  income = rep(
+    mean(modellp2_data$income), 
+    2
+  )
+)
+# generate new data with different gender
+
+prediction_data
+
+pred_link <- predict(
+  modellp2, 
+  newdata = prediction_data, 
+  type = "link", 
+  se.fit = TRUE
+)
+# predict on the log scale
+
+prediction_data$predicted <- exp(pred_link$fit)
+
+prediction_data$lower <- exp(pred_link$fit - 1.96 * pred_link$se.fit)
+
+prediction_data$upper <- exp(pred_link$fit + 1.96 * pred_link$se.fit)
+
+prediction_table <- data.frame(
+  gender = prediction_data$gender, 
+  `adjusted predicted value` = prediction_data$predicted, 
+  `95% CI lower` = prediction_data$lower, 
+  `95% CI upper` = prediction_data$upper, 
+  check.names = FALSE
+)
+# calculate the original outcome and 95% CI
+
+kable(
+  prediction_table, 
+  caption = "Adjusted predicted left-ear Tympanometric width from model 2L"
+)
+
+```
+
+```{r}
+prediction_male <- prediction_data$predicted[
+    prediction_data$gender == "male"
+  ]
+
+prediction_female <- prediction_data$predicted[
+    prediction_data$gender == "female"
+  ]
+# extract predictions for males and females
+
+prediction_diff <- prediction_female - prediction_male
+
+prediction_ratio <- prediction_female / prediction_male
+# calculate the predicted difference and ratio
+
+prediction_comp_df <- data.frame(
+  statistics = c(
+    "adjusted prediction: male", 
+    "adjusted prediction: female", 
+    "female minus male", 
+    "female devided by male", 
+    "Wald z statistic for equality", 
+    "Wald p-value for equality"
+  ), 
+  value = c(
+    prediction_male, 
+    prediction_female, 
+    prediction_diff, 
+    prediction_ratio, 
+    gender_z, 
+    gender_p
+  )
+)
+
+kable(
+  prediction_comp_df, 
+  caption = "comparison of adjusted predicted values from model 2L"
+)
+```
+With citizenship fixed at Citizen and the continuous covariates held at their Model 2L sample means, the predicted left-ear tympanometric width was 83.85024 for males and 85.42727 for females. The female-minus-male difference was 1.5770302. The test produced z = 2.1764513 and p = 0.0000002; therefore, the predicted values [did/did not] differ significantly between males and females.
+
+### Problem 2 - Sakila
+
+load library and database
+```{r}
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(microbenchmark)
+
+sakila <- dbConnect(SQLite(), "sakila_master.db")
+```
+
+## a. Number of customers and percentage of customers are active
+Use R for calculation
+```{r}
+customers <- dbGetQuery(
+  con,
+  "
+  SELECT store_id, active
+  FROM customer
+  "
+)
+
+ans_aR <- customers %>%
+  group_by(store_id) %>%
+  summarise(
+    number_of_customers = n(),
+    percent_active = 100 * mean(active == 1, na.rm = TRUE),
+    .groups = "drop"
+  )
+ans_aR
+```
+
+Use SQL for calculation
+```{r}
+ans_aSQL <- dbGetQuery(
+  sakila, 
+  "
+  SELECT 
+    store_id, 
+    COUNT(*) AS number_of_customers, 
+    100.0 * SUM(active) / COUNT(*) AS active_percentage
+  FROM CUSTOMER
+  GROUP BY store_id
+  ORDER BY store_id
+  "
+) # select store id, number of rows, and sum of active(which is 0 or 1) divided by number of rows
+ans_aSQL
+```
+
+## b. identify the names and country of staff
+Use R for calculation
+```{r}
+staff_df <- dbGetQuery(
+  con,
+  "
+  SELECT staff_id, first_name, last_name, address_id
+  FROM staff
+  "
+)
+
+address_df <- dbGetQuery(
+  con,
+  "
+  SELECT address_id, city_id
+  FROM address
+  "
+)
+
+city_df <- dbGetQuery(
+  con,
+  "
+  SELECT city_id, country_id
+  FROM city
+  "
+)
+
+country_df <- dbGetQuery(
+  con,
+  "
+  SELECT country_id, country
+  FROM country
+  "
+)
+
+answer_bR <- staff_df %>%
+  left_join(address_df, by = "address_id") %>%
+  left_join(city_df, by = "city_id") %>%
+  left_join(country_df, by = "country_id") %>%
+  transmute(
+    staff_id,
+    name = paste(first_name, last_name),
+    country
+  ) %>%
+  arrange(staff_id)
+answer_bR
+```
+
+Use SQL for calculation
+```{r}
+ans_bSQL <- dbGetQuery(
+  sakila, 
+  "
+  SELECT
+    staff.staff_id, 
+    staff.first_name, 
+    staff.last_name, 
+    country.country
+  FROM STAFF AS staff
+  JOIN ADDRESS AS address
+    ON staff.address_id = address.address_id
+  JOIN CITY as city
+    ON address.city_id = city.city_id
+  JOIN COUNTRY AS country
+    ON city.country_id = country.country_id
+  ORDER BY staff.staff_id
+  "
+) # to get country, we have to connect STAFF-ADDRESS-CITY-COUNTRY
+ans_bSQL
+```
+
+## c. identify the names of the films
+Use R for calculation
+```{r}
+film_df <- dbGetQuery(
+  con,
+  "
+  SELECT film_id, title
+  FROM film
+  "
+)
+
+inventory_df <- dbGetQuery(
+  con,
+  "
+  SELECT inventory_id, film_id
+  FROM inventory
+  "
+)
+
+rental_df <- dbGetQuery(
+  con,
+  "
+  SELECT rental_id, inventory_id
+  FROM rental
+  "
+)
+
+payment_df <- dbGetQuery(
+  con,
+  "
+  SELECT payment_id, rental_id, amount
+  FROM payment
+  "
+)
+
+film_revenue_R <- payment_df %>%
+  inner_join(rental_df, by = "rental_id") %>%
+  inner_join(inventory_df, by = "inventory_id") %>%
+  inner_join(film_df, by = "film_id") %>%
+  group_by(film_id, title) %>%
+  summarise(
+    total_rental_value = sum(amount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+answer_cR <- film_revenue_R %>%
+  filter(total_rental_value == max(total_rental_value)) %>%
+  arrange(title)
+
+answer_cR
+```
+
+Use SQL for calculation
+```{r}
+ans_cSQL <- dbGetQuery(
+  sakila, 
+  "
+  WITH film_revenue AS (
+      SELECT
+          f.film_id,
+          f.title,
+          SUM(p.amount) AS total_rental_value
+      FROM film AS f
+      JOIN inventory AS i
+        ON f.film_id = i.film_id
+      JOIN rental AS r
+        ON i.inventory_id = r.inventory_id
+      JOIN payment AS p
+        ON r.rental_id = p.rental_id
+      GROUP BY f.film_id, f.title
+  )
+  SELECT
+      film_id,
+      title,
+      total_rental_value
+  FROM film_revenue
+  WHERE total_rental_value = (
+      SELECT MAX(total_rental_value)
+      FROM film_revenue
+  )
+  ORDER BY title
+  "
+)
+ans_cSQL
+```
+
+## Benchmark
+benchmark for a
+```{r}
+set.seed(123)
+benchmark_a <- microbenchmark(
+  R_method = {
+    customers <- dbGetQuery(
+      sakila,
+      "
+      SELECT store_id, active
+      FROM customer
+      "
+    )
+    
+    ans_aR <- customers %>%
+      group_by(store_id) %>%
+      summarise(
+        number_of_customers = n(),
+        percent_active = 100 * mean(active == 1, na.rm = TRUE),
+        .groups = "drop"
+      )
+  }, 
+  SQL_method = {
+    ans_aSQL <- dbGetQuery(
+      sakila, 
+      "
+      SELECT 
+        store_id, 
+        COUNT(*) AS number_of_customers, 
+        100.0 * SUM(active) / COUNT(*) AS active_percentage
+      FROM CUSTOMER
+      GROUP BY store_id
+      ORDER BY store_id
+      "
+    )
+  }, 
+  times = 100L
+)
+summary(benchmark_a)
+```
+
+benchmark for b
+```{r}
+set.seed(123)
+benchmark_b <- microbenchmark(
+  R_method = {
+    staff_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT staff_id, first_name, last_name, address_id
+      FROM staff
+      "
+    )
+    
+    address_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT address_id, city_id
+      FROM address
+      "
+    )
+    
+    city_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT city_id, country_id
+      FROM city
+      "
+    )
+    
+    country_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT country_id, country
+      FROM country
+      "
+    )
+    
+    answer_bR <- staff_df %>%
+      left_join(address_df, by = "address_id") %>%
+      left_join(city_df, by = "city_id") %>%
+      left_join(country_df, by = "country_id") %>%
+      transmute(
+        staff_id,
+        name = paste(first_name, last_name),
+        country
+      ) %>%
+      arrange(staff_id)
+  }, 
+  SQL_method = {
+    ans_bSQL <- dbGetQuery(
+      sakila, 
+      "
+      SELECT
+        staff.staff_id, 
+        staff.first_name, 
+        staff.last_name, 
+        country.country
+      FROM STAFF AS staff
+      JOIN ADDRESS AS address
+        ON staff.address_id = address.address_id
+      JOIN CITY as city
+        ON address.city_id = city.city_id
+      JOIN COUNTRY AS country
+        ON city.country_id = country.country_id
+      ORDER BY staff.staff_id
+      "
+    )
+  }, 
+  times = 100L
+)
+summary(benchmark_b)
+```
+
+benchmark for c
+```{r}
+set.seed(123)
+benchmark_c <- microbenchmark(
+  R_method = {
+    film_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT film_id, title
+      FROM film
+      "
+    )
+    
+    inventory_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT inventory_id, film_id
+      FROM inventory
+      "
+    )
+    
+    rental_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT rental_id, inventory_id
+      FROM rental
+      "
+    )
+    
+    payment_df <- dbGetQuery(
+      sakila,
+      "
+      SELECT payment_id, rental_id, amount
+      FROM payment
+      "
+    )
+    
+    film_revenue_R <- payment_df %>%
+      inner_join(rental_df, by = "rental_id") %>%
+      inner_join(inventory_df, by = "inventory_id") %>%
+      inner_join(film_df, by = "film_id") %>%
+      group_by(film_id, title) %>%
+      summarise(
+        total_rental_value = sum(amount, na.rm = TRUE),
+        .groups = "drop"
+      )
+    
+    answer_cR <- film_revenue_R %>%
+      filter(total_rental_value == max(total_rental_value)) %>%
+      arrange(title)
+  }, 
+  SQL_method = {
+    ans_cSQL <- dbGetQuery(
+      sakila, 
+      "
+      WITH film_revenue AS (
+          SELECT
+              f.film_id,
+              f.title,
+              SUM(p.amount) AS total_rental_value
+          FROM film AS f
+          JOIN inventory AS i
+            ON f.film_id = i.film_id
+          JOIN rental AS r
+            ON i.inventory_id = r.inventory_id
+          JOIN payment AS p
+            ON r.rental_id = p.rental_id
+          GROUP BY f.film_id, f.title
+      )
+      SELECT
+          film_id,
+          title,
+          total_rental_value
+      FROM film_revenue
+      WHERE total_rental_value = (
+          SELECT MAX(total_rental_value)
+          FROM film_revenue
+      )
+      ORDER BY title
+      "
+    )
+  }, 
+  times = 100L
+)
+summary(benchmark_c)
+```
+The benchmark results show that the SQL approach had shorter execution time than the approach that extracted the tables and performed the joins and calculations in R.
