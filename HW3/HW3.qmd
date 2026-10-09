@@ -28,8 +28,9 @@ names(demo)
 
 merge into a dataframe
 
-AUXTWIDR	Tympanometric width, right ear
-AUXTWIDL	Tympanometric width, left ear
+AUXTWIDR:	Tympanometric width, right ear
+
+AUXTWIDL:	Tympanometric width, left ear
 
 ```{r}
 attr(aux$AUXTWIDR, "label")
@@ -259,7 +260,9 @@ model_statistics <- data.frame(
 
 names(model_statistics)[3] <- "Deviance pseudo-R²"
 
-kable(model_statistics, caption = "Sample sizes and fit statistics for the Poisson models", align = c("l", "r", "r", "r"))
+kable(model_statistics, 
+      caption = "Sample sizes and fit statistics for the Poisson models", 
+      align = c("l", "r", "r", "r"))
 # print the model-statistics table
 ```
 
@@ -413,12 +416,12 @@ sakila <- dbConnect(SQLite(), "sakila_master.db")
 Use R for calculation
 ```{r}
 customers <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT store_id, active
   FROM customer
   "
-)
+) # retrieve each customer's store ID and active status from the database.
 
 ans_aR <- customers %>%
   group_by(store_id) %>%
@@ -427,6 +430,9 @@ ans_aR <- customers %>%
     percent_active = 100 * mean(active == 1, na.rm = TRUE),
     .groups = "drop"
   )
+# group customers by store
+# count total number of customers 
+# calculate the percentage of active customers
 ans_aR
 ```
 
@@ -451,7 +457,7 @@ ans_aSQL
 Use R for calculation
 ```{r}
 staff_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT staff_id, first_name, last_name, address_id
   FROM staff
@@ -459,7 +465,7 @@ staff_df <- dbGetQuery(
 )
 
 address_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT address_id, city_id
   FROM address
@@ -467,7 +473,7 @@ address_df <- dbGetQuery(
 )
 
 city_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT city_id, country_id
   FROM city
@@ -475,12 +481,14 @@ city_df <- dbGetQuery(
 )
 
 country_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT country_id, country
   FROM country
   "
 )
+# retrieve staff, address, city, country information.
+# address_id will be used to connect each staff member to an address.
 
 answer_bR <- staff_df %>%
   left_join(address_df, by = "address_id") %>%
@@ -492,6 +500,7 @@ answer_bR <- staff_df %>%
     country
   ) %>%
   arrange(staff_id)
+# join the four tables in R
 answer_bR
 ```
 
@@ -522,7 +531,7 @@ ans_bSQL
 Use R for calculation
 ```{r}
 film_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT film_id, title
   FROM film
@@ -530,7 +539,7 @@ film_df <- dbGetQuery(
 )
 
 inventory_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT inventory_id, film_id
   FROM inventory
@@ -538,7 +547,7 @@ inventory_df <- dbGetQuery(
 )
 
 rental_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT rental_id, inventory_id
   FROM rental
@@ -546,12 +555,13 @@ rental_df <- dbGetQuery(
 )
 
 payment_df <- dbGetQuery(
-  con,
+  sakila,
   "
   SELECT payment_id, rental_id, amount
   FROM payment
   "
 )
+# retrieve film IDs and titles, inventory records, rental records, payment records
 
 film_revenue_R <- payment_df %>%
   inner_join(rental_df, by = "rental_id") %>%
@@ -562,10 +572,12 @@ film_revenue_R <- payment_df %>%
     total_rental_value = sum(amount, na.rm = TRUE),
     .groups = "drop"
   )
+# combine the tables using payment-rental-inventory-film
 
 answer_cR <- film_revenue_R %>%
   filter(total_rental_value == max(total_rental_value)) %>%
   arrange(title)
+# find the film with the largest total rental value
 
 answer_cR
 ```
@@ -601,6 +613,9 @@ ans_cSQL <- dbGetQuery(
   ORDER BY title
   "
 )
+# combine the tables using payment-rental-inventory-film
+# keep the film whose revenue equals the maximum
+
 ans_cSQL
 ```
 
@@ -642,6 +657,7 @@ benchmark_a <- microbenchmark(
   }, 
   times = 100L
 )
+# compare two methods in (a) using benchmark
 summary(benchmark_a)
 ```
 
@@ -715,6 +731,7 @@ benchmark_b <- microbenchmark(
   }, 
   times = 100L
 )
+# compare two methods in (b) using benchmark
 summary(benchmark_b)
 ```
 
@@ -802,6 +819,185 @@ benchmark_c <- microbenchmark(
   }, 
   times = 100L
 )
+# compare two methods in (c) using benchmark
 summary(benchmark_c)
 ```
 The benchmark results show that the SQL approach had shorter execution time than the approach that extracted the tables and performed the joins and calculations in R.
+
+### Problem 3
+import data
+```{r}
+data_au <- read.csv(
+  "au-500/au-500.csv", 
+  stringsAsFactors = FALSE, 
+  check.names = FALSE
+)
+dim(data_au)
+head(data_au)
+```
+
+## a. percentage of .com
+```{r}
+text <- sub("^[a-z]+://", "", tolower(trimws(data_au[["web"]])))
+# convert website addresses to lowercase, remove spaces and https://
+test <- sub("/.*$", "", text)
+# remove everything after domain name
+text <- sub(":.*$", "", text)
+# remove port number
+percent_com <- mean(grepl("\\.com$", text), na.rm = TRUE) * 100
+# do not count domain ending with .com.au
+percent_com
+```
+
+## b. most dommon domain for email
+```{r}
+email_domain <- sub("^.*@", "", tolower(data_au[["email"]]))
+# convert email addresses to lowercase, remove spaces
+domain_count <- sort(table(email_domain[
+  !is.na(email_domain) & 
+    email_domain != "" & 
+    grepl("@", tolower(data_au[["email"]]))
+  ]), 
+  decreasing = TRUE
+) # extract everything after @ and count the domains and sort them
+names(domain_count)[1]
+unname(domain_count)[1]
+```
+"hotmail.com" is the most common domain of email address
+
+## c. proportion of company names
+```{r}
+valid_company <- !is.na(data_au[["company_name"]]) & trimws(data_au[["company_name"]]) != ""
+# keep only nonmissing and nonempty company names.
+
+has_nonalpha <- grepl(
+  "[^A-Za-z,[:space:]]",
+  data_au[["company_name"]]
+)
+# identify names containing any character other than
+# letters, commas, and whitespace
+prop_nonalpha <- mean(has_nonalpha[valid_company])
+prop_nonalpha
+```
+0.09 of companies have non-alphabetic character
+
+```{r}
+has_nonalpha_no_amp <- grepl(
+  "[^A-Za-z,&[:space:]]",
+  data_au[["company_name"]]
+) # also exclude &
+
+prop_nonalpha_no_amp <- mean(
+  has_nonalpha_no_amp[valid_company]
+)
+
+prop_nonalpha_no_amp
+```
+0.008 of companies have non-alphabetic character(exclude &)
+
+## d. cell phone format
+```{r}
+# define a function that reformats phone number
+phone_format <- function(x){
+  digits <- gsub("[^0-9]", "", x)
+  good <- !is.na(x) & nchar(digits) == 10
+  result <- rep(NA_character_, length(x))
+  result[good] <- paste0(
+    substr(digits[good], 1, 4), "-", 
+    substr(digits[good], 5, 7), "-", 
+    substr(digits[good], 8, 10)
+  )
+  result
+}
+
+cell_phone1 <- phone_format(data_au[["phone1"]])
+cell_phone2 <- phone_format(data_au[["phone2"]])
+head(cell_phone1, 10)
+head(cell_phone2, 10)
+# print the first ten phone numbers from both columns
+
+```
+
+## e. histogram of apartment number
+```{r}
+address <- trimws(data_au[["address"]])
+# remove unnecessary spaces from the addresses
+has_num_address <- grepl("[0-9]+$", address)
+# check the addresses have apartment number or not
+apt_num <- rep(NA_real_, length(address))
+# create a output vector
+apt_num[has_num_address] <- as.numeric(
+  sub(".*?([0-9]+)$", "\\1", address[has_num_address])
+) # extract the sequence of digits of apartment number
+head(data.frame(address, apt_num), 10)
+```
+
+```{r}
+valid_apt <- !is.na(apt_num) & apt_num > 0
+# zero must be excluded because log(0) is undefined
+
+hist(
+  log(apt_num[valid_apt]), 
+  breaks = "FD", 
+  main = "Histogram of Log Apartment Numbers", 
+  xlab = "log(apartment number)", 
+  col = "lightblue", 
+  border = "white"
+) # draw the histogram of observed digits without NA and 0
+```
+
+## f. examine Benford’s law
+```{r}
+first_digit <- as.integer(
+  substr(as.character(apt_num[!is.na(apt_num) & apt_num > 0]), 1, 1)
+)
+
+observed_prop <- prop.table(
+  table(factor(first_digit, levels = 1: 9))
+)
+observed_prop # get first digit of apartment number
+
+benford_prop <- log10(1 + 1 / 1: 9) # get the distribution of benford's law
+
+benford_table <- data.frame(
+  digit = 1: 9, 
+  observed = as.numeric(observed_prop), 
+  benford = benford_prop
+) # merge into a dataframe
+benford_table
+```
+
+```{r}
+barplot(
+  rbind(
+    observed = benford_table$observed, 
+    benford = benford_table$benford
+  ), 
+  beside = TRUE, 
+  names.arg = 1: 9, 
+  xlab = "Leading digit", 
+  ylab = "Proportion", 
+  main = "Apartment Numbers vs. Benford's Law", 
+  col = c("steelblue", "red")
+) # drawing barplot of observed digits and Benford's law
+
+legend(
+  "topright", 
+  legend = c("observed", "benford"), 
+  fill = c("steelblue", "red"), 
+  bty = "n"
+)
+```
+
+$H_0$: The leading digits follow Benford's law.
+
+$H_A$: The leading digits do not follow Benford's law.
+```{r}
+benford_test <- chisq.test(
+  x = as.numeric(table(factor(first_digit, levels = 1:9))),
+  p = benford_prop
+) # doing hypothesis test
+
+benford_test
+```
+
