@@ -5,6 +5,8 @@ format: pdf
 editor: visual
 ---
 
+This is the link to my repo: https://github.com/ytting920410/STATS_506
+
 load library
 ```{r}
 library(haven)
