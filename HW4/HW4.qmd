@@ -1,0 +1,71 @@
+---
+title: "HW4"
+author: "Yi-Ting Tsai"
+format: pdf
+editor: visual
+---
+
+## Tidyverse: New Zealand
+
+Import library and read file
+```{r}
+library(tidyverse)
+nzge <- readRDS("nzge.rds")
+head(nzge)
+```
+
+# a. Generate a table
+```{r}
+nzge %>%
+  group_by(election_year, voting_type) %>%
+  summarise(
+    total_votes = sum(votes), 
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_votes))
+  
+```
+
+# b. Report the proportion of votes
+```{r}
+nzge %>%
+  filter(
+    election_year == "2014", 
+    voting_type == "Candidate"
+  ) %>%
+  group_by(party) %>%
+  summarise(
+    candidate_vote = sum(votes), 
+    .groups = "drop"
+  ) %>%
+  mutate(
+    propartion = candidate_vote / sum(candidate_vote)
+  ) %>%
+  arrange(desc(propartion)) %>%
+  mutate(
+    percentage = sprintf("%.2f%%", propartion * 100)
+  ) %>%
+  select(party, candidate_vote, percentage)
+```
+
+# c. Which party won the Candidate vote and which party won the Party vote
+```{r}
+nzge %>%
+  group_by(election_year, voting_type, party) %>%
+  summarise(
+    total_votes = sum(votes), 
+    .groups = "drop"
+  ) %>%
+  group_by(election_year, voting_type) %>%
+  slice_max(
+    order_by = total_votes, 
+    n = 1, 
+    with_ties = TRUE
+  ) %>%
+  summarise(
+    winner = paste(sort(party), collapse = ": "), 
+    .groups = "drop"
+  )
+```
+
+## Problem 2 - Tidyverse: Tennis
