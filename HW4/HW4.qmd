@@ -5,13 +5,12 @@ format: pdf
 editor: visual
 ---
 
-## Tidyverse: New Zealand
+## Problem 1 - Tidyverse: New Zealand
 
 Import library and read file
 ```{r}
 library(tidyverse)
 nzge <- readRDS("nzge.rds")
-head(nzge)
 ```
 
 # a. Generate a table
@@ -69,3 +68,192 @@ nzge %>%
 ```
 
 ## Problem 2 - Tidyverse: Tennis
+```{r}
+library(tidyverse)
+tennis <- read.csv("tennis-atp-sackmann-data-master/atp_matches_2019.csv")
+```
+
+# a. How many tournaments
+```{r}
+tennis %>%
+  summarise(
+    tournaments = n_distinct(tourney_name)
+  )
+```
+
+# b. More than one tournament
+```{r}
+tennis %>%
+  filter(
+    round == "F"
+  ) %>%
+  group_by(winner_name) %>%
+  count(winner_name, name = "tournaments_won") %>%
+  filter(
+    tournaments_won > 1
+  ) %>%
+  arrange(desc(tournaments_won))
+```
+12 players won more than 1 tournaments in 2019. Dominic Thiem and Novak Djokovic won the most, 5 tournaments each.
+
+# c. Winners have more aces than losers?
+```{r}
+tennis %>%
+  filter(!is.na(w_ace), !is.na(l_ace)) %>%
+  mutate(ace_diff = w_ace - l_ace) %>%
+  summarise(
+    matches = n(), 
+    mean_winner_aces = mean(w_ace), 
+    mean_loser_aces = mean(l_ace),
+    mean_difference = mean(ace_diff),
+    median_difference = median(ace_diff),
+    proportion_winner_more = mean(ace_diff > 0),
+    proportion_equal = mean(ace_diff == 0),
+    proportion_loser_more = mean(ace_diff < 0)
+  )
+```
+These descriptive results support the claim that winners had more aces on average in the observed matches.
+
+# d. Highest win-rate
+```{r}
+full_join(
+  tennis %>% count(winner_name, name = "wins"), 
+  tennis %>% count(loser_name, name = "losses"), 
+  by = c("winner_name" = "loser_name")
+) %>%
+  mutate(
+    wins = replace_na(wins, 0L), 
+    losses = replace_na(losses, 0L), 
+    matches = wins + losses, 
+    win_rate = wins / matches
+  ) %>%
+  filter(matches >= 5) %>%
+  slice_max(win_rate, n = 1, with_ties = TRUE)
+```
+
+## Problem 3 - Visualization
+```{r}
+library(tidyverse)
+covid <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/refs/heads/master/rolling-averages/us-states.csv")
+
+theme_set(
+  theme_minimal(base_size = 12) +
+    theme(
+      plot.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      plot.caption = element_text(hjust = 0)
+    )
+)
+```
+
+# a. How many major and minor spikes in cases were there?
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+#| fig-dpi: 300
+
+covid %>%
+  mutate(date = as.Date(date)) %>%
+  group_by(date) %>%
+  summarise(
+    cases_avg = sum(cases_avg), 
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(date, cases_avg)) + 
+  geom_line(color = "#2166AC", linewidth = 0.6) +
+  geom_hline(yintercept = 100000, linetype = "dashed") +
+  scale_y_continuous(labels = scales::label_comma()) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b\n%Y") +
+  labs(
+    title = "COVID-19 waves across the 50 U.S. states",
+    subtitle = "Dashed line marks 100,000 daily cases",
+    x = NULL,
+    y = "Daily new cases (seven-day average)"
+  )
+```
+I counted 4 major spikes and 4 minor spikes.
+I treated distinct waves with peaks of at least 100,000 daily cases
+as major spikes, and smaller but clearly separated waves as minor spikes.
+Small fluctuations within a wave were not counted as separate spikes. 
+
+# b. What differences do you see in their trajectories over time?
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| fig-dpi: 300
+
+state_rates <- covid %>%
+  filter(state %in% state.name) %>%
+  group_by(state) %>%
+  summarise(
+    overall_rate = sum(cases_avg_per_100k),
+    .groups = "drop"
+  )
+
+highest_state <- state_rates %>%
+  slice_max(overall_rate, n = 1, with_ties = TRUE)
+
+lowest_state <- state_rates %>%
+  slice_min(overall_rate, n = 1, with_ties = TRUE)
+
+selected_states <- bind_rows(
+  highest_state %>% mutate(group = "Highest overall rate"),
+  lowest_state %>% mutate(group = "Lowest overall rate")
+)
+
+covid %>%
+  mutate(date = as.Date(date)) %>%
+  inner_join(selected_states, by = "state") %>%
+  ggplot(aes(x = date, y = cases_avg_per_100k)) +
+  geom_line(linewidth = 0.6, color = "#2166AC") +
+  facet_wrap(vars(group, state), ncol = 1) +
+  scale_x_date(date_breaks = "6 months", date_labels = "%b\n%Y") +
+  labs(
+    title = "COVID-19 trajectories in states with extreme overall case rates",
+    subtitle = "Panels use the same vertical scale for comparison",
+    x = NULL,
+    y = "Daily cases per 100,000 people\n(seven-day average)"
+  )
+```
+Rhode Island had the highest overall reported case rate, while Maine had the lowest. The largest contrast occurred in early 2022: Rhode Island reached approximately 500 daily cases per 100,000 people, compared with about 80 in Maine. Rhode Island's peak was sharp, while Maine experienced a broader period of moderately elevated case rates.
+Overall, the plot suggests that Rhode Island's higher cumulative reported case rate reflected larger waves, especially the sharp surge in early 2022, rather than consistently higher rates at every point in time.
+
+# c. The first five states to experience Covid in a substantial way
+```{r}
+#| fig-width: 10
+#| fig-height: 7
+#| fig-dpi: 300
+
+first_five <- covid %>%
+  mutate(date = as.Date(date)) %>%
+  filter(cases_avg_per_100k >= 5) %>%
+  group_by(state) %>%
+  summarise(
+    first_date = min(date),
+    .groups = "drop"
+  ) %>%
+  arrange(first_date, state) %>%
+  slice_head(n = 5)
+
+covid %>%
+  mutate(date = as.Date(date)) %>%
+  filter(
+    state %in% first_five$state,
+    date >= min(first_five$first_date) - 14,
+    date <= max(first_five$first_date) + 30
+  ) %>%
+  ggplot(aes(date, cases_avg_per_100k)) +
+  geom_line(color = "#2166AC", linewidth = 0.6) +
+  geom_hline(yintercept = 5, linetype = "dashed") +
+  facet_wrap(vars(state), ncol = 1) +
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%b %d") +
+  labs(
+    title = "Early COVID-19 trajectories in the first five qualifying states",
+    subtitle = "Dashed line marks 5 daily cases per 100,000 people",
+    x = NULL,
+    y = "Daily cases per 100,000 (seven-day average)"
+  )
+```
+I defined substantial impact as reaching a seven-day-average daily case rate of at least 5 cases per 100,000 people. Under this definition, the first five states were Connecticut, Louisiana, Massachusetts, New Jersey, New York.
+The plots show when these states reached the threshold.
+This ranking depends on the chosen threshold and reflects reported cases, not the true start of transmission.
